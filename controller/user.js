@@ -57,6 +57,24 @@ exports.login = (req, res, next) => {
     .catch((error) => res.status(500).json({ error }));
 };
 
+exports.checkAuth = (req, res) => {
+  res.status(200).json({
+    userId: req.auth.userId,
+  });
+};
+
+exports.logout = (req, res) => {
+  res.clearCookie('token', {
+    sameSite: 'None',
+    secure: true,
+    httpOnly: true,
+  });
+
+  res.status(200).json({
+    message: 'Logout successful',
+  });
+};
+
 exports.requestPasswordReset = (req, res, next) => {
   const { email } = req.body;
 
