@@ -40,13 +40,14 @@ function decryptContent(content) {
 exports.create = async (req, res, next) => {
   try {
     const noteObject = { ...req.body };
+
     delete noteObject.id;
     delete noteObject.userId;
 
     const encryptedContent = encryptContent(noteObject.content);
 
     const note = new Note({
-      ...req.body,
+      ...noteObject,
       content: encryptedContent,
       userId: req.auth.userId,
     });
@@ -54,6 +55,7 @@ exports.create = async (req, res, next) => {
     const savedNote = await note.save();
 
     savedNote.content = decryptContent(savedNote.content);
+
     res.status(201).json(savedNote);
   } catch (err) {
     console.error('Error creating note:', err);
@@ -97,6 +99,8 @@ exports.getById = async (req, res, next) => {
 exports.updateById = async (req, res, next) => {
   try {
     const noteObject = { ...req.body };
+
+    delete noteObject.id;
     delete noteObject.userId;
 
     const note = await Note.findOne({ _id: req.params.id });
@@ -124,6 +128,7 @@ exports.updateById = async (req, res, next) => {
     const updatedNote = await Note.findOne({ _id: req.params.id });
 
     updatedNote.content = decryptContent(updatedNote.content);
+
     res.status(200).json(updatedNote);
   } catch (error) {
     res.status(500).json({ error });
@@ -133,14 +138,19 @@ exports.updateById = async (req, res, next) => {
 exports.deleteById = (req, res, next) => {
   Note.findOne({ _id: req.params.id })
     .then((note) => {
-      if (note.userId != req.auth.userId) {
-        res.status(401).json({ message: 'Unauthorized' });
+      if (!note) {
+        return res.status(404).json({ message: 'Note not found' });
       }
-      Note.deleteOne({ _id: req.params.id })
+
+      if (note.userId !== req.auth.userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      return Note.deleteOne({ _id: req.params.id })
         .then(() => {
           res.status(200).json({ message: 'Note deleted' });
         })
-        .catch((error) => res.status(401).json({ error }));
+        .catch((error) => res.status(500).json({ error }));
     })
-    .catch((err) => req.status(400).json({ err }));
+    .catch((err) => res.status(400).json({ err }));
 };

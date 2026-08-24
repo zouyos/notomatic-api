@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const userCtrl = require('../controller/user');
+const auth = require('../middleware/auth');
 
 const { body } = require('express-validator');
 const validate = require('../middleware/validation');
@@ -20,6 +21,8 @@ const validationRules = [
 
 router.post('/signup', validationRules, userCtrl.signup);
 router.post('/login', validationRules, userCtrl.login);
+router.get('/check', auth, userCtrl.checkAuth);
+router.post('/logout', auth, userCtrl.logout);
 router.post('/request-password-reset', userCtrl.requestPasswordReset);
 router.post('/reset/:token', validationRules, userCtrl.resetPassword);
 
