@@ -58,6 +58,9 @@ exports.login = (req, res, next) => {
 
           console.log('TOKEN GENERATED:', !!token);
           console.log('USER ID IN TOKEN:', user.id);
+          console.log('SET-COOKIE: sending token cookie');
+          console.log('Origin:', req.headers.origin);
+          console.log('User-Agent:', req.headers['user-agent']);
 
           res
             .status(200)
