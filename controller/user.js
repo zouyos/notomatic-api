@@ -21,19 +21,33 @@ exports.signup = (req, res, next) => {
 };
 
 exports.login = (req, res, next) => {
+  console.log('=== LOGIN ===');
+  console.log('Email:', req.body.email);
+  console.log('Password received:', !!req.body.password);
+
   User.findOne({ email: req.body.email })
     .then((user) => {
+      console.log('User found:', !!user);
+
       if (!user) {
-        return res.status(401).json({ message: 'Incorrect email or password' });
+        console.log('LOGIN FAILED: user not found');
+        return res.status(401).json({
+          message: 'Incorrect email or password',
+        });
       }
+
       bcrypt
         .compare(req.body.password, user.password)
         .then((valid) => {
+          console.log('Password valid:', valid);
+
           if (!valid) {
-            return res
-              .status(401)
-              .json({ message: 'Incorrect email or password' });
+            console.log('LOGIN FAILED: invalid password');
+            return res.status(401).json({
+              message: 'Incorrect email or password',
+            });
           }
+
           const token = jwt.sign(
             { userId: user.id },
             process.env.TOKEN_SECRET,
@@ -41,6 +55,10 @@ exports.login = (req, res, next) => {
               expiresIn: '24h',
             },
           );
+
+          console.log('TOKEN GENERATED:', !!token);
+          console.log('USER ID IN TOKEN:', user.id);
+
           res
             .status(200)
             .cookie('token', token, {
@@ -52,12 +70,22 @@ exports.login = (req, res, next) => {
               message: 'Login successful',
             });
         })
-        .catch((error) => res.status(500).json({ error }));
+        .catch((error) => {
+          console.error('BCRYPT ERROR:', error);
+          res.status(500).json({ error });
+        });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => {
+      console.error('DATABASE LOGIN ERROR:', error);
+      res.status(500).json({ error });
+    });
 };
 
 exports.checkAuth = (req, res) => {
+  console.log('=== CHECK AUTH ===');
+  console.log('Cookie token received:', !!req.cookies?.token);
+  console.log('req.auth:', req.auth);
+
   res.status(200).json({
     userId: req.auth.userId,
   });
