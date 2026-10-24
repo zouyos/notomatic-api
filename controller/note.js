@@ -37,26 +37,24 @@ function decryptContent(content) {
   return decrypted.toString('utf8');
 }
 
-exports.create = async (req, res, next) => {
+exports.create = async (req, res) => {
   try {
-    const noteObject = { ...req.body };
-
-    delete noteObject.id;
-    delete noteObject.userId;
-
-    const encryptedContent = encryptContent(noteObject.content);
+    const now = new Date();
 
     const note = new Note({
-      ...noteObject,
-      content: encryptedContent,
+      title: req.body.title,
+      content: encryptContent(req.body.content),
       userId: req.auth.userId,
+      created_at: now,
+      modified_at: now,
     });
 
     const savedNote = await note.save();
 
-    savedNote.content = decryptContent(savedNote.content);
+    const result = savedNote.toObject();
+    result.content = decryptContent(result.content);
 
-    res.status(201).json(savedNote);
+    res.status(201).json(result);
   } catch (err) {
     console.error('Error creating note:', err);
     res.status(400).json({ error: err.message });
@@ -65,92 +63,85 @@ exports.create = async (req, res, next) => {
 
 exports.getAll = async (req, res, next) => {
   try {
-    const notes = await Note.find({ userId: req.auth.userId });
+    const notes = await Note.find({ userId: req.auth.userId }).sort({
+      modified_at: -1,
+    });
 
     const decryptedNotes = notes.map((note) => ({
       ...note.toObject(),
       content: decryptContent(note.content),
     }));
+
     res.status(200).json(decryptedNotes);
   } catch (err) {
     res.status(400).json({ err });
   }
 };
 
-exports.getById = async (req, res, next) => {
+exports.getById = async (req, res) => {
   try {
-    const note = await Note.findOne({ _id: req.params.id });
+    const note = await Note.findOne({
+      _id: req.params.id,
+      userId: req.auth.userId,
+    });
 
     if (!note) {
       return res.status(404).json({ message: 'Note not found' });
     }
 
-    if (note.userId !== req.auth.userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
+    const result = note.toObject();
+    result.content = decryptContent(result.content);
 
-    note.content = decryptContent(note.content);
-    res.status(200).json(note);
-  } catch (error) {
-    res.status(500).json({ error });
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
-exports.updateById = async (req, res, next) => {
+exports.updateById = async (req, res) => {
   try {
-    const noteObject = { ...req.body };
-
-    delete noteObject.id;
-    delete noteObject.userId;
-
-    const note = await Note.findOne({ _id: req.params.id });
-
-    if (!note) {
-      return res.status(404).json({ message: 'Note not found' });
-    }
-
-    if (note.userId !== req.auth.userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const encryptedContent = encryptContent(noteObject.content);
-
-    await Note.updateOne(
-      { _id: req.params.id },
+    const updatedNote = await Note.findOneAndUpdate(
       {
-        ...noteObject,
-        content: encryptedContent,
         _id: req.params.id,
         userId: req.auth.userId,
       },
+      {
+        title: req.body.title,
+        content: encryptContent(req.body.content),
+        modified_at: new Date(),
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
 
-    const updatedNote = await Note.findOne({ _id: req.params.id });
+    if (!updatedNote) {
+      return res.status(404).json({ message: 'Note not found' });
+    }
 
-    updatedNote.content = decryptContent(updatedNote.content);
+    const result = updatedNote.toObject();
+    result.content = decryptContent(result.content);
 
-    res.status(200).json(updatedNote);
-  } catch (error) {
-    res.status(500).json({ error });
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
-exports.deleteById = (req, res, next) => {
-  Note.findOne({ _id: req.params.id })
-    .then((note) => {
-      if (!note) {
-        return res.status(404).json({ message: 'Note not found' });
-      }
+exports.deleteById = async (req, res) => {
+  try {
+    const deletedNote = await Note.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.auth.userId,
+    });
 
-      if (note.userId !== req.auth.userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
-      }
+    if (!deletedNote) {
+      return res.status(404).json({ message: 'Note not found' });
+    }
 
-      return Note.deleteOne({ _id: req.params.id })
-        .then(() => {
-          res.status(200).json({ message: 'Note deleted' });
-        })
-        .catch((error) => res.status(500).json({ error }));
-    })
-    .catch((err) => res.status(400).json({ err }));
+    res.status(200).json({ message: 'Note deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
